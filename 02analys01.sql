@@ -1,91 +1,73 @@
-COMMENT ON TABLE measurements IS '1. Проверяем, у всех ли юзеров одинаковое количество записей. Джойним юзеров и считаем сколько у кого строк и пачек.';
+COMMENT ON TABLE measurement_input_params IS '1. Проверяем, у всех ли пользователей одинаковое количество записей и пачек';
 
-WITH users AS (
-    SELECT DISTINCT user_id FROM measurements
-)
 SELECT 
-    u.user_id,
-    COUNT(m.id) AS total_records,
-    COUNT(DISTINCT m.batch_id) AS total_batches
-FROM users u
-LEFT JOIN measurements m ON u.user_id = m.user_id
-GROUP BY u.user_id;
+    e.id AS employee_id,
+    e.name AS employee_name,
+    COUNT(p.id) AS total_records,
+    COUNT(DISTINCT b.id) AS total_batches
+FROM employees e
+LEFT JOIN measurement_batchs b ON e.id = b.employee_id
+LEFT JOIN measurement_input_params p ON b.id = p.measurement_batch_id
+GROUP BY e.id, e.name;
 
 
-COMMENT ON TABLE measurements IS '2. Проверяем, есть ли пустые пачки. Берем список всех пачек и смотрим, есть ли те, где нет строк.';
+COMMENT ON TABLE measurement_input_params IS '2. Проверяем наличие пустых пачек через LEFT JOIN';
 
-WITH batches AS (
-    SELECT DISTINCT batch_id FROM measurements
-)
 SELECT 
-    b.batch_id,
-    COUNT(m.id) AS records_count
-FROM batches b
-LEFT JOIN measurements m ON b.batch_id = m.batch_id
-GROUP BY b.batch_id
-HAVING COUNT(m.id) = 0;
+    b.id AS batch_id,
+    b.employee_id,
+    COUNT(p.id) AS records_count
+FROM measurement_batchs b
+LEFT JOIN measurement_input_params p ON b.id = p.measurement_batch_id
+GROUP BY b.id, b.employee_id
+HAVING COUNT(p.id) = 0;
 
 
-COMMENT ON TABLE measurements IS '3. Проверяем, во всех ли пачках ровно 5 параметров. Считаем количество уникальных параметров на каждую пачку.';
+COMMENT ON TABLE measurement_input_params IS '3. Проверяем, во всех ли пачках оборудования ДМК ровно 5 параметров';
 
-WITH batches AS (
-    SELECT DISTINCT batch_id FROM measurements
-),
-param_counts AS (
-    SELECT 
-        batch_id,
-        COUNT(DISTINCT parameter_name) AS cnt
-    FROM measurements
-    GROUP BY batch_id
-)
 SELECT 
-    b.batch_id,
-    p.cnt AS total_params
-FROM batches b
-LEFT JOIN param_counts p ON b.batch_id = p.batch_id
-WHERE p.cnt != 5 OR p.cnt IS NULL;
+    b.id AS batch_id,
+    COUNT(DISTINCT p.measurement_parameter_type_id) AS actual_params_count
+FROM measurement_batchs b
+LEFT JOIN measurement_input_params p ON b.id = p.measurement_batch_id
+WHERE b.measurement_equipment_id = 1
+GROUP BY b.id
+HAVING COUNT(DISTINCT p.measurement_parameter_type_id) != 5;
 
 
-COMMENT ON TABLE measurements IS '4. Проверяем значения на допустимые диапазоны. Делаем табличку с мин и макс и джойним к измерениям.';
+COMMENT ON TABLE measurement_input_params IS '4. Проверяем значения измерений на допустимые диапазоны';
 
-WITH limits(param_name, min_val, max_val) AS (
+WITH limits(type_id, min_val, max_val) AS (
     VALUES
-        ('heart_rate', 60, 100),
-        ('systolic_pressure', 110, 130),
-        ('diastolic_pressure', 70, 85),
-        ('body_temperature', 36.1, 37.2),
-        ('spo2', 95, 100)
+        (1, 100.0::numeric, 200.0::numeric),  
+        (2, -30.0::numeric, 50.0::numeric),  
+        (3, 900.0::numeric, 1100.0::numeric), 
+        (4, 0.0::numeric, 360.0::numeric),    
+        (5, 0.0::numeric, 50.0::numeric)      
 )
 SELECT 
-    m.id,
-    m.parameter_name,
-    m.parameter_value,
+    p.id,
+    p.measurement_batch_id,
+    p.measurement_parameter_type_id,
+    p.measurement_value,
     l.min_val,
     l.max_val
-FROM measurements m
+FROM measurement_input_params p
 LEFT JOIN limits l 
-    ON m.parameter_name = l.param_name
-   AND m.parameter_value BETWEEN l.min_val AND l.max_val
-WHERE l.param_name IS NULL;
+    ON p.measurement_parameter_type_id = l.type_id
+   AND p.measurement_value BETWEEN l.min_val AND l.max_val
+WHERE l.type_id IS NULL;
 
 
-COMMENT ON TABLE measurements IS '5. Проверяем правильность единиц измерения. Сверяем фактические единицы с эталонным справочником.';
+COMMENT ON TABLE measurement_input_params IS '5. Проверяем привязку параметров к единицам измерения';
 
-WITH correct_units(param_name, proper_unit) AS (
-    VALUES
-        ('heart_rate', 'bpm'),
-        ('systolic_pressure', 'mmHg'),
-        ('diastolic_pressure', 'mmHg'),
-        ('body_temperature', 'C'),
-        ('spo2', '%')
-)
 SELECT 
-    m.id,
-    m.parameter_name,
-    m.unit AS current_unit,
-    u.proper_unit
-FROM measurements m
-LEFT JOIN correct_units u 
-    ON m.parameter_name = u.param_name 
-   AND m.unit = u.proper_unit
-WHERE u.param_name IS NULL;
+    p.id AS input_param_id,
+    mpt.name AS parameter_name,
+    u.name AS unit_name
+FROM measurement_input_params p
+LEFT JOIN measurement_parameter_types mpt 
+    ON p.measurement_parameter_type_id = mpt.id
+LEFT JOIN units u 
+    ON mpt.unit_id = u.id
+WHERE mpt.id IS NULL;
