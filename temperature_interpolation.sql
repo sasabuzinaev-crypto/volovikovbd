@@ -1,12 +1,10 @@
+CREATE TABLE IF NOT EXISTS public.calc_temperature_correction (
+    temperature numeric(8,2) NOT NULL PRIMARY KEY,
+    correction  numeric(8,2) NOT NULL
+);
+
 DO $$
 BEGIN
-    IF to_regclass('public.calc_temperature_correction') IS NULL THEN
-        CREATE TABLE public.calc_temperature_correction (
-            temperature numeric(8,2) NOT NULL PRIMARY KEY,
-            correction  numeric(8,2) NOT NULL
-        );
-    END IF;
-
     IF NOT EXISTS (
         SELECT 1
         FROM pg_type t
