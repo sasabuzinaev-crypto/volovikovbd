@@ -1,8 +1,4 @@
-CREATE TABLE IF NOT EXISTS public.calc_temperature_correction (
-    temperature numeric(8,2) NOT NULL PRIMARY KEY,
-    correction  numeric(8,2) NOT NULL
-);
-
+-- таблица температурных поправок создается в meteo_constants.sql
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -21,19 +17,6 @@ BEGIN
     END IF;
 END;
 $$;
-
-INSERT INTO public.calc_temperature_correction (temperature, correction)
-VALUES
-    (0::numeric,  0::numeric),
-    (5::numeric,  0.5::numeric),
-    (10::numeric, 1::numeric),
-    (15::numeric, 1::numeric),
-    (20::numeric, 1.5::numeric),
-    (25::numeric, 2::numeric),
-    (30::numeric, 3.5::numeric),
-    (40::numeric, 4.5::numeric)
-ON CONFLICT (temperature) DO UPDATE
-SET correction = EXCLUDED.correction;
 
 CREATE OR REPLACE FUNCTION public.fn_get_interpolation_for_correction(
     par_temperature numeric

@@ -1,5 +1,5 @@
 -- Проверка примеров интерполяции из Db2026/_Docs/Artillery/TechnicalTask.md.
--- Запускать после temperature_interpolation.sql.
+-- сначала запустить meteo_constants.sql, потом temperature_interpolation.sql.
 DO $$
 DECLARE
     v_params public.interpolations_type;
