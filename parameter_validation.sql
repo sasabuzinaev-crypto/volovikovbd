@@ -1,15 +1,17 @@
 -- добавляем тестовые пачки с правильными и неправильными данными
+delete from public.measurement_input_params
+where measurement_batch_id between 201 and 205;
+
+delete from public.measurement_batchs
+where id between 201 and 205;
+
 insert into public.measurement_batchs (id, employee_id, measurement_equipment_id, started)
 values
     (201, 1, 1, timestamp '2026-10-25 08:00:00'),
     (202, 1, 1, timestamp '2026-10-25 08:10:00'),
     (203, 1, 1, timestamp '2026-10-25 08:20:00'),
     (204, 1, 2, timestamp '2026-10-25 08:30:00'),
-    (205, 1, 2, timestamp '2026-10-25 08:40:00')
-on conflict (id) do update
-set employee_id = excluded.employee_id,
-    measurement_equipment_id = excluded.measurement_equipment_id,
-    started = excluded.started;
+    (205, 1, 2, timestamp '2026-10-25 08:40:00');
 
 insert into public.measurement_input_params
     (id, measurement_batch_id, measurement_parameter_type_id, measurement_value)
@@ -47,23 +49,19 @@ values
     (20502, 205, 2, 60),
     (20503, 205, 3, 499),
     (20504, 205, 4, -1),
-    (20506, 205, 6, 151)
-on conflict (id) do update
-set measurement_batch_id = excluded.measurement_batch_id,
-    measurement_parameter_type_id = excluded.measurement_parameter_type_id,
-    measurement_value = excluded.measurement_value;
+    (20506, 205, 6, 151);
 
 with parameter_list as (
     select
         batch.id,
         batch.measurement_equipment_id,
         batch.started,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 1) as height,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 2) as temperature,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 3) as pressure,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 4) as wind_direction,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 5) as wind_speed,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 6) as bullet_drift
+        max(case when param.measurement_parameter_type_id = 1 then param.measurement_value end) as height,
+        max(case when param.measurement_parameter_type_id = 2 then param.measurement_value end) as temperature,
+        max(case when param.measurement_parameter_type_id = 3 then param.measurement_value end) as pressure,
+        max(case when param.measurement_parameter_type_id = 4 then param.measurement_value end) as wind_direction,
+        max(case when param.measurement_parameter_type_id = 5 then param.measurement_value end) as wind_speed,
+        max(case when param.measurement_parameter_type_id = 6 then param.measurement_value end) as bullet_drift
     from public.measurement_batchs batch
     left join public.measurement_input_params param
         on param.measurement_batch_id = batch.id
@@ -82,13 +80,6 @@ with parameter_list as (
             bullet_drift
         )::public.measurement_parameters_type) as errors
     from parameter_list
-), saved_errors as (
-    update public.measurement_batchs batch
-    set has_error = nullif(checked_parameters.errors, '') is not null,
-        error_description = nullif(checked_parameters.errors, '')
-    from checked_parameters
-    where batch.id = checked_parameters.id
-    returning batch.id, batch.has_error, batch.error_description
 )
 select
     checked_parameters.id as "№",
@@ -106,8 +97,7 @@ select
     end as "направление ветра",
     checked_parameters.wind_speed as "скорость ветра",
     checked_parameters.bullet_drift as "дальность сноса пуль",
-    case when saved_errors.has_error then 'да' else 'нет' end as "флаг: есть ошибка",
-    coalesce(saved_errors.error_description, 'нет ошибок') as "описание ошибки"
+    case when checked_parameters.errors <> '' then 'да' else 'нет' end as "флаг: есть ошибка",
+    coalesce(nullif(checked_parameters.errors, ''), 'нет ошибок') as "описание ошибки"
 from checked_parameters
-join saved_errors on saved_errors.id = checked_parameters.id
 order by checked_parameters.id;
