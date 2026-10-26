@@ -30,7 +30,9 @@ with parameter_list as (
     select
         employee.id,
         employee.name,
-        count(error_item.error_text) as error_count
+        count(distinct case
+            when error_item.error_text is not null then checked_parameters.id
+        end) as error_count
     from public.employees employee
     left join checked_parameters
         on checked_parameters.employee_id = employee.id
