@@ -5,24 +5,6 @@ alter table public.measurement_batchs
 alter table public.measurement_batchs
     add column if not exists error_description text;
 
-create table if not exists public.parameter_error_messages (
-    error_code text primary key,
-    error_text text not null
-);
-
-delete from public.parameter_error_messages;
-
-insert into public.parameter_error_messages (error_code, error_text)
-values
-    ('parameters_not_passed', 'список параметров не передан'),
-    ('unknown_equipment', 'неизвестный тип оборудования'),
-    ('drift_for_dmk', 'дальность сноса пуль не используется для дмк'),
-    ('speed_for_vr', 'скорость ветра не используется для вр'),
-    ('value_not_set', '%s: значение не задано'),
-    ('below_minimum', '%s: значение меньше %s'),
-    ('above_maximum', '%s: значение больше %s'),
-    ('wrong_decimal_places', '%s: неправильное количество знаков после запятой');
-
 do $$
 begin
     if not exists (
@@ -54,36 +36,20 @@ declare
     var_parameter record;
     var_errors text := '';
     var_error text;
-    var_error_template text;
 begin
     if par_parameters is null then
-        select error_text
-        into var_errors
-        from public.parameter_error_messages
-        where error_code = 'parameters_not_passed';
-        return var_errors;
+        return 'список параметров не передан';
     end if;
 
     if par_parameters.measurement_equipment_id is null
        or par_parameters.measurement_equipment_id not in (1, 2) then
-        select error_text
-        into var_errors
-        from public.parameter_error_messages
-        where error_code = 'unknown_equipment';
+        var_errors := 'неизвестный тип оборудования';
     elsif par_parameters.measurement_equipment_id = 1
        and par_parameters.bullet_drift is not null then
-        select error_text
-        into var_error
-        from public.parameter_error_messages
-        where error_code = 'drift_for_dmk';
-        var_errors := concat_ws('; ', nullif(var_errors, ''), var_error);
+        var_errors := 'дальность сноса пуль не используется для дмк';
     elsif par_parameters.measurement_equipment_id = 2
        and par_parameters.wind_speed is not null then
-        select error_text
-        into var_error
-        from public.parameter_error_messages
-        where error_code = 'speed_for_vr';
-        var_errors := concat_ws('; ', nullif(var_errors, ''), var_error);
+        var_errors := 'скорость ветра не используется для вр';
     end if;
 
     for var_parameter in
@@ -111,34 +77,26 @@ begin
         var_error := null;
 
         if var_parameter.parameter_value is null then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'value_not_set';
-            var_error := format(var_error_template, var_parameter.parameter_name);
+            var_error := var_parameter.parameter_name || ': значение не задано';
         elsif var_parameter.min_value is not null
           and var_parameter.parameter_value < var_parameter.min_value then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'below_minimum';
-            var_error := format(var_error_template, var_parameter.parameter_name, var_parameter.min_value);
+            var_error := format(
+                '%s: значение меньше %s',
+                var_parameter.parameter_name,
+                var_parameter.min_value
+            );
         elsif var_parameter.max_value is not null
           and var_parameter.parameter_value > var_parameter.max_value then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'above_maximum';
-            var_error := format(var_error_template, var_parameter.parameter_name, var_parameter.max_value);
+            var_error := format(
+                '%s: значение больше %s',
+                var_parameter.parameter_name,
+                var_parameter.max_value
+            );
         elsif var_parameter.parameter_value <> round(
             var_parameter.parameter_value,
             var_parameter.decimal_places
         ) then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'wrong_decimal_places';
-            var_error := format(var_error_template, var_parameter.parameter_name);
+            var_error := var_parameter.parameter_name || ': неправильное количество знаков после запятой';
         end if;
 
         if var_error is not null then

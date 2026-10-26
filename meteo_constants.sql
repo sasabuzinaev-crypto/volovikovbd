@@ -4,8 +4,6 @@ create table if not exists public.calc_temperature_correction (
     correction numeric(8,2) not null
 );
 
-delete from public.calc_temperature_correction;
-
 insert into public.calc_temperature_correction (temperature, correction)
 values
     (0, 0),
@@ -15,7 +13,9 @@ values
     (20, 1.5),
     (25, 2),
     (30, 3.5),
-    (40, 4.5);
+    (40, 4.5)
+on conflict (temperature) do update
+set correction = excluded.correction;
 
 create table if not exists public.parameter_limits (
     parameter_type_id integer primary key,
@@ -26,8 +26,6 @@ create table if not exists public.parameter_limits (
     equipment_id integer
 );
 
-delete from public.parameter_limits;
-
 insert into public.parameter_limits
     (parameter_type_id, parameter_name, min_value, max_value, decimal_places, equipment_id)
 values
@@ -36,21 +34,26 @@ values
     (3, 'давление', 500, 900, 0, null),
     (4, 'направление ветра', 0, 59, 0, null),
     (5, 'скорость ветра', 0, 15, 0, 1),
-    (6, 'дальность сноса пуль', 0, 150, 0, 2);
+    (6, 'дальность сноса пуль', 0, 150, 0, 2)
+on conflict (parameter_type_id) do update
+set parameter_name = excluded.parameter_name,
+    min_value = excluded.min_value,
+    max_value = excluded.max_value,
+    decimal_places = excluded.decimal_places,
+    equipment_id = excluded.equipment_id;
 
 create table if not exists public.meteo_constants (
     constant_name text primary key,
     constant_value numeric not null
 );
 
-delete from public.meteo_constants
-where constant_name in ('standard_pressure', 'standard_temperature', 'negative_pressure_code');
-
 insert into public.meteo_constants (constant_name, constant_value)
 values
     ('standard_pressure', 750),
     ('standard_temperature', 15.9),
-    ('negative_pressure_code', 500);
+    ('negative_pressure_code', 500)
+on conflict (constant_name) do update
+set constant_value = excluded.constant_value;
 
 create or replace function public.fn_get_meteo_constant(par_name text)
 returns numeric
