@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="900" viewBox="0 0 1500 900">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#43536b"/>
+    </marker>
+    <style>
+      .title { font: 700 30px Arial, sans-serif; fill: #172033; }
+      .box-title { font: 700 21px Arial, sans-serif; fill: #172033; }
+      .field { font: 17px Arial, sans-serif; fill: #263349; }
+      .label { font: 16px Arial, sans-serif; fill: #43536b; }
+      .table { fill: #ffffff; stroke: #43536b; stroke-width: 2; rx: 12; }
+      .head { fill: #e8eef8; stroke: #43536b; stroke-width: 2; rx: 12; }
+      .rel { fill: none; stroke: #43536b; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1500" height="900" fill="#f7f9fc"/>
+  <text x="750" y="55" text-anchor="middle" class="title">справочники для таблиц 2 и 3 (вр и дмк)</text>
+
+  <!-- existing equipment directory -->
+  <rect x="55" y="345" width="330" height="190" class="table"/>
+  <rect x="55" y="345" width="330" height="48" class="head"/>
+  <text x="220" y="376" text-anchor="middle" class="box-title">measurment_equipment</text>
+  <text x="80" y="430" class="field">PK  id</text>
+  <text x="80" y="465" class="label">существующий справочник</text>
+
+  <!-- correction types -->
+  <rect x="505" y="220" width="475" height="385" class="table"/>
+  <rect x="505" y="220" width="475" height="48" class="head"/>
+  <text x="742" y="251" text-anchor="middle" class="box-title">calc_correction_types</text>
+  <text x="535" y="305" class="field">PK  id</text>
+  <text x="535" y="342" class="field">FK  parent_id → id (эта таблица)</text>
+  <text x="535" y="379" class="field">FK  measurment_equipment_id</text>
+  <text x="565" y="405" class="field">→ measurment_equipment.id</text>
+  <text x="535" y="450" class="field">description</text>
+  <text x="535" y="487" class="field">header_values integer[]</text>
+  <text x="535" y="545" class="label">общая таблица и варианты для вр / дмк</text>
+
+  <!-- heights -->
+  <rect x="1100" y="220" width="330" height="190" class="table"/>
+  <rect x="1100" y="220" width="330" height="48" class="head"/>
+  <text x="1265" y="251" text-anchor="middle" class="box-title">calc_correction_heights</text>
+  <text x="1130" y="305" class="field">PK  id</text>
+  <text x="1130" y="342" class="field">height</text>
+  <text x="1130" y="378" class="label">стандартные высоты, м</text>
+
+  <!-- correction rows -->
+  <rect x="575" y="690" width="520" height="170" class="table"/>
+  <rect x="575" y="690" width="520" height="48" class="head"/>
+  <text x="835" y="721" text-anchor="middle" class="box-title">calc_correction</text>
+  <text x="610" y="775" class="field">PK  id</text>
+  <text x="610" y="810" class="field">FK  height_id, type_id</text>
+  <text x="830" y="775" class="field">row_values integer[]</text>
+  <text x="830" y="810" class="label">поправки строки</text>
+
+  <!-- relationships -->
+  <path d="M 385 430 L 455 430 L 455 392 L 505 392" class="rel"/>
+  <text x="395" y="410" class="label">1 : много</text>
+
+  <path d="M 742 605 L 742 655 L 735 655 L 735 690" class="rel"/>
+  <text x="755" y="650" class="label">1 : много</text>
+  <path d="M 1265 410 L 1265 625 L 1020 625 L 1020 690" class="rel"/>
+  <text x="1110" y="612" class="label">1 : много</text>
+
+  <!-- recursive parent link -->
+  <path d="M 890 220 L 890 135 L 590 135 L 590 220" class="rel"/>
+  <text x="740" y="122" text-anchor="middle" class="label">parent_id: общий тип → подтип</text>
+
+  <text x="750" y="885" text-anchor="middle" class="label">в calc_correction одна запись соответствует одной высоте и одному варианту справочной таблицы</text>
+</svg>
