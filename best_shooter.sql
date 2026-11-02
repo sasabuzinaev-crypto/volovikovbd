@@ -3,12 +3,12 @@ with parameter_list as (
         batch.id,
         batch.employee_id,
         batch.measurement_equipment_id,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 1) as height,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 2) as temperature,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 3) as pressure,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 4) as wind_direction,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 5) as wind_speed,
-        max(param.measurement_value) filter (where param.measurement_parameter_type_id = 6) as bullet_drift
+        max(case when param.measurement_parameter_type_id = 1 then param.measurement_value end) as height,
+        max(case when param.measurement_parameter_type_id = 2 then param.measurement_value end) as temperature,
+        max(case when param.measurement_parameter_type_id = 3 then param.measurement_value end) as pressure,
+        max(case when param.measurement_parameter_type_id = 4 then param.measurement_value end) as wind_direction,
+        max(case when param.measurement_parameter_type_id = 5 then param.measurement_value end) as wind_speed,
+        max(case when param.measurement_parameter_type_id = 6 then param.measurement_value end) as bullet_drift
     from public.measurement_batchs batch
     left join public.measurement_input_params param
         on param.measurement_batch_id = batch.id
@@ -30,16 +30,10 @@ with parameter_list as (
     select
         employee.id,
         employee.name,
-        count(distinct case
-            when error_item.error_text is not null then checked_parameters.id
-        end) as error_count
+        count(case when checked_parameters.errors <> '' then 1 end) as error_count
     from public.employees employee
     left join checked_parameters
         on checked_parameters.employee_id = employee.id
-    left join lateral regexp_split_to_table(
-        nullif(checked_parameters.errors, ''),
-        '; '
-    ) as error_item(error_text) on true
     group by employee.id, employee.name
 ), ranked_users as (
     select
@@ -51,6 +45,6 @@ with parameter_list as (
 select
     place as "место",
     name as "пользователь",
-    error_count as "количество ошибок"
+    error_count as "количество ошибочных пачек"
 from ranked_users
 order by error_count, name;

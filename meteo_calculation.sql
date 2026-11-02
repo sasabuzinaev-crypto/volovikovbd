@@ -24,7 +24,6 @@ create or replace function public.fn_calculate_meteo_header(
 )
 returns public.meteo_header_type
 language plpgsql
-stable
 as $$
 declare
     var_result public.meteo_header_type;
@@ -33,6 +32,7 @@ declare
     var_temperature_delta integer;
     var_temperature_code text;
     var_temperature_correction numeric;
+    var_number integer;
 begin
     if par_measured_at is null
        or par_height is null
@@ -49,7 +49,17 @@ begin
         raise exception 'давление должно быть целым числом';
     end if;
 
-    var_result.ddhhm := to_char(par_measured_at, 'DDHH')
+    var_result.ddhhm :=
+        case
+            when extract(day from par_measured_at)::integer < 10
+                then '0' || extract(day from par_measured_at)::integer::text
+            else extract(day from par_measured_at)::integer::text
+        end
+        || case
+            when extract(hour from par_measured_at)::integer < 10
+                then '0' || extract(hour from par_measured_at)::integer::text
+            else extract(hour from par_measured_at)::integer::text
+        end
         || floor(extract(minute from par_measured_at) / 10)::integer::text;
 
     if par_height < -999 or par_height > 9999 then
@@ -57,20 +67,44 @@ begin
     end if;
 
     if par_height < 0 then
-        var_result.vvvv := '-' || lpad(abs(par_height)::integer::text, 3, '0');
+        var_number := abs(par_height)::integer;
+        if var_number < 10 then
+            var_result.vvvv := '-00' || var_number::text;
+        elsif var_number < 100 then
+            var_result.vvvv := '-0' || var_number::text;
+        else
+            var_result.vvvv := '-' || var_number::text;
+        end if;
     else
-        var_result.vvvv := lpad(par_height::integer::text, 4, '0');
+        var_number := par_height::integer;
+        if var_number < 10 then
+            var_result.vvvv := '000' || var_number::text;
+        elsif var_number < 100 then
+            var_result.vvvv := '00' || var_number::text;
+        elsif var_number < 1000 then
+            var_result.vvvv := '0' || var_number::text;
+        else
+            var_result.vvvv := var_number::text;
+        end if;
     end if;
 
     var_pressure_delta := (par_pressure - public.fn_get_meteo_constant('standard_pressure'))::integer;
 
     if var_pressure_delta < 0 then
-        var_pressure_code := lpad((
+        var_number :=
             public.fn_get_meteo_constant('negative_pressure_code')::integer
             + abs(var_pressure_delta)
-        )::text, 3, '0');
+        ;
     else
-        var_pressure_code := lpad(var_pressure_delta::text, 3, '0');
+        var_number := var_pressure_delta;
+    end if;
+
+    if var_number < 10 then
+        var_pressure_code := '00' || var_number::text;
+    elsif var_number < 100 then
+        var_pressure_code := '0' || var_number::text;
+    else
+        var_pressure_code := var_number::text;
     end if;
 
     var_temperature_correction := public.fn_interpolate_value(
@@ -86,9 +120,18 @@ begin
 
     -- в задании нет отдельного формата для отрицательного тт, поэтому сохраняем минус.
     if var_temperature_delta < 0 then
-        var_temperature_code := '-' || lpad(abs(var_temperature_delta)::text, 2, '0');
+        var_number := abs(var_temperature_delta);
+        if var_number < 10 then
+            var_temperature_code := '-0' || var_number::text;
+        else
+            var_temperature_code := '-' || var_number::text;
+        end if;
     else
-        var_temperature_code := lpad(var_temperature_delta::text, 2, '0');
+        if var_temperature_delta < 10 then
+            var_temperature_code := '0' || var_temperature_delta::text;
+        else
+            var_temperature_code := var_temperature_delta::text;
+        end if;
     end if;
 
     var_result.bbbtt := var_pressure_code || var_temperature_code;

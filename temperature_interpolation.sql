@@ -23,7 +23,6 @@ CREATE OR REPLACE FUNCTION public.fn_get_interpolation_for_correction(
 )
 RETURNS public.interpolations_type
 LANGUAGE plpgsql
-STABLE
 AS $$
 DECLARE
     var_result public.interpolations_type;
@@ -92,7 +91,6 @@ CREATE OR REPLACE FUNCTION public.fn_interpolate_value(
 )
 RETURNS numeric
 LANGUAGE plpgsql
-IMMUTABLE
 AS $$
 BEGIN
     IF p_x IS NULL OR p_params IS NULL THEN

@@ -18,10 +18,10 @@ values
     ('unknown_equipment', 'неизвестный тип оборудования'),
     ('drift_for_dmk', 'дальность сноса пуль не используется для дмк'),
     ('speed_for_vr', 'скорость ветра не используется для вр'),
-    ('value_not_set', '%s: значение не задано'),
-    ('below_minimum', '%s: значение меньше %s'),
-    ('above_maximum', '%s: значение больше %s'),
-    ('wrong_decimal_places', '%s: неправильное количество знаков после запятой');
+    ('value_not_set', 'значение не задано'),
+    ('below_minimum', 'значение меньше'),
+    ('above_maximum', 'значение больше'),
+    ('wrong_decimal_places', 'неправильное количество знаков после запятой');
 
 do $$
 begin
@@ -48,13 +48,15 @@ $$;
 create or replace function public.fn_check_parameters(par_parameters public.measurement_parameters_type)
 returns text
 language plpgsql
-stable
 as $$
 declare
-    var_parameter record;
     var_errors text := '';
     var_error text;
-    var_error_template text;
+    var_parameter_name text;
+    var_min_value numeric;
+    var_max_value numeric;
+    var_decimal_places integer;
+    var_parameter_value numeric;
 begin
     if par_parameters is null then
         select error_text
@@ -73,78 +75,152 @@ begin
     elsif par_parameters.measurement_equipment_id = 1
        and par_parameters.bullet_drift is not null then
         select error_text
-        into var_error
+        into var_errors
         from public.parameter_error_messages
         where error_code = 'drift_for_dmk';
-        var_errors := concat_ws('; ', nullif(var_errors, ''), var_error);
     elsif par_parameters.measurement_equipment_id = 2
        and par_parameters.wind_speed is not null then
         select error_text
-        into var_error
+        into var_errors
         from public.parameter_error_messages
         where error_code = 'speed_for_vr';
-        var_errors := concat_ws('; ', nullif(var_errors, ''), var_error);
     end if;
 
-    for var_parameter in
-        select
-            limits.parameter_name,
-            limits.min_value,
-            limits.max_value,
-            limits.decimal_places,
-            values_list.parameter_value
-        from (
-            values
-                (1, par_parameters.height),
-                (2, par_parameters.temperature),
-                (3, par_parameters.pressure),
-                (4, par_parameters.wind_direction),
-                (5, par_parameters.wind_speed),
-                (6, par_parameters.bullet_drift)
-        ) as values_list(parameter_type_id, parameter_value)
-        join public.parameter_limits limits
-            on limits.parameter_type_id = values_list.parameter_type_id
-        where limits.equipment_id is null
-           or limits.equipment_id = par_parameters.measurement_equipment_id
-        order by limits.parameter_type_id
-    loop
+    select parameter_name, min_value, max_value, decimal_places
+    into var_parameter_name, var_min_value, var_max_value, var_decimal_places
+    from public.parameter_limits
+    where parameter_type_id = 1;
+    var_parameter_value := par_parameters.height;
+    var_error := null;
+    if var_parameter_value is null then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'value_not_set';
+        var_error := var_parameter_name || ': ' || var_error;
+    elsif var_parameter_value <> round(var_parameter_value, var_decimal_places) then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'wrong_decimal_places';
+        var_error := var_parameter_name || ': ' || var_error;
+    end if;
+    if var_error is not null then
+        if var_errors = '' then var_errors := var_error; else var_errors := var_errors || '; ' || var_error; end if;
+    end if;
+
+    select parameter_name, min_value, max_value, decimal_places
+    into var_parameter_name, var_min_value, var_max_value, var_decimal_places
+    from public.parameter_limits
+    where parameter_type_id = 2;
+    var_parameter_value := par_parameters.temperature;
+    var_error := null;
+    if var_parameter_value is null then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'value_not_set';
+        var_error := var_parameter_name || ': ' || var_error;
+    elsif var_parameter_value < var_min_value then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'below_minimum';
+        var_error := var_parameter_name || ': ' || var_error || ' ' || var_min_value::text;
+    elsif var_parameter_value > var_max_value then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'above_maximum';
+        var_error := var_parameter_name || ': ' || var_error || ' ' || var_max_value::text;
+    elsif var_parameter_value <> round(var_parameter_value, var_decimal_places) then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'wrong_decimal_places';
+        var_error := var_parameter_name || ': ' || var_error;
+    end if;
+    if var_error is not null then
+        if var_errors = '' then var_errors := var_error; else var_errors := var_errors || '; ' || var_error; end if;
+    end if;
+
+    select parameter_name, min_value, max_value, decimal_places
+    into var_parameter_name, var_min_value, var_max_value, var_decimal_places
+    from public.parameter_limits
+    where parameter_type_id = 3;
+    var_parameter_value := par_parameters.pressure;
+    var_error := null;
+    if var_parameter_value is null then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'value_not_set';
+        var_error := var_parameter_name || ': ' || var_error;
+    elsif var_parameter_value < var_min_value then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'below_minimum';
+        var_error := var_parameter_name || ': ' || var_error || ' ' || var_min_value::text;
+    elsif var_parameter_value > var_max_value then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'above_maximum';
+        var_error := var_parameter_name || ': ' || var_error || ' ' || var_max_value::text;
+    elsif var_parameter_value <> round(var_parameter_value, var_decimal_places) then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'wrong_decimal_places';
+        var_error := var_parameter_name || ': ' || var_error;
+    end if;
+    if var_error is not null then
+        if var_errors = '' then var_errors := var_error; else var_errors := var_errors || '; ' || var_error; end if;
+    end if;
+
+    select parameter_name, min_value, max_value, decimal_places
+    into var_parameter_name, var_min_value, var_max_value, var_decimal_places
+    from public.parameter_limits
+    where parameter_type_id = 4;
+    var_parameter_value := par_parameters.wind_direction;
+    var_error := null;
+    if var_parameter_value is null then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'value_not_set';
+        var_error := var_parameter_name || ': ' || var_error;
+    elsif var_parameter_value < var_min_value then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'below_minimum';
+        var_error := var_parameter_name || ': ' || var_error || ' ' || var_min_value::text;
+    elsif var_parameter_value > var_max_value then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'above_maximum';
+        var_error := var_parameter_name || ': ' || var_error || ' ' || var_max_value::text;
+    elsif var_parameter_value <> round(var_parameter_value, var_decimal_places) then
+        select error_text into var_error from public.parameter_error_messages where error_code = 'wrong_decimal_places';
+        var_error := var_parameter_name || ': ' || var_error;
+    end if;
+    if var_error is not null then
+        if var_errors = '' then var_errors := var_error; else var_errors := var_errors || '; ' || var_error; end if;
+    end if;
+
+    if par_parameters.measurement_equipment_id = 1 then
+        select parameter_name, min_value, max_value, decimal_places
+        into var_parameter_name, var_min_value, var_max_value, var_decimal_places
+        from public.parameter_limits
+        where parameter_type_id = 5;
+        var_parameter_value := par_parameters.wind_speed;
         var_error := null;
-
-        if var_parameter.parameter_value is null then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'value_not_set';
-            var_error := format(var_error_template, var_parameter.parameter_name);
-        elsif var_parameter.min_value is not null
-          and var_parameter.parameter_value < var_parameter.min_value then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'below_minimum';
-            var_error := format(var_error_template, var_parameter.parameter_name, var_parameter.min_value);
-        elsif var_parameter.max_value is not null
-          and var_parameter.parameter_value > var_parameter.max_value then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'above_maximum';
-            var_error := format(var_error_template, var_parameter.parameter_name, var_parameter.max_value);
-        elsif var_parameter.parameter_value <> round(
-            var_parameter.parameter_value,
-            var_parameter.decimal_places
-        ) then
-            select error_text
-            into var_error_template
-            from public.parameter_error_messages
-            where error_code = 'wrong_decimal_places';
-            var_error := format(var_error_template, var_parameter.parameter_name);
+        if var_parameter_value is null then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'value_not_set';
+            var_error := var_parameter_name || ': ' || var_error;
+        elsif var_parameter_value < var_min_value then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'below_minimum';
+            var_error := var_parameter_name || ': ' || var_error || ' ' || var_min_value::text;
+        elsif var_parameter_value > var_max_value then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'above_maximum';
+            var_error := var_parameter_name || ': ' || var_error || ' ' || var_max_value::text;
+        elsif var_parameter_value <> round(var_parameter_value, var_decimal_places) then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'wrong_decimal_places';
+            var_error := var_parameter_name || ': ' || var_error;
         end if;
-
         if var_error is not null then
-            var_errors := concat_ws('; ', nullif(var_errors, ''), var_error);
+            if var_errors = '' then var_errors := var_error; else var_errors := var_errors || '; ' || var_error; end if;
         end if;
-    end loop;
+    end if;
+
+    if par_parameters.measurement_equipment_id = 2 then
+        select parameter_name, min_value, max_value, decimal_places
+        into var_parameter_name, var_min_value, var_max_value, var_decimal_places
+        from public.parameter_limits
+        where parameter_type_id = 6;
+        var_parameter_value := par_parameters.bullet_drift;
+        var_error := null;
+        if var_parameter_value is null then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'value_not_set';
+            var_error := var_parameter_name || ': ' || var_error;
+        elsif var_parameter_value < var_min_value then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'below_minimum';
+            var_error := var_parameter_name || ': ' || var_error || ' ' || var_min_value::text;
+        elsif var_parameter_value > var_max_value then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'above_maximum';
+            var_error := var_parameter_name || ': ' || var_error || ' ' || var_max_value::text;
+        elsif var_parameter_value <> round(var_parameter_value, var_decimal_places) then
+            select error_text into var_error from public.parameter_error_messages where error_code = 'wrong_decimal_places';
+            var_error := var_parameter_name || ': ' || var_error;
+        end if;
+        if var_error is not null then
+            if var_errors = '' then var_errors := var_error; else var_errors := var_errors || '; ' || var_error; end if;
+        end if;
+    end if;
 
     return var_errors;
 end;
