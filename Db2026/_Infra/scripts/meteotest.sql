@@ -4,7 +4,25 @@ declare
     var_count integer;
     var_errors integer;
     var_temperature integer;
+    var_reference_rows integer;
+    var_reference_value integer;
 begin
+    select count(*) into var_reference_rows from public.calc_correction;
+    if var_reference_rows <> 54 then
+        raise exception 'ожидалось 54 строки с массивами, получено %', var_reference_rows;
+    end if;
+    select row_values[13] into var_reference_value
+    from public.calc_correction where height_id = 2 and type_id = 8;
+    if var_reference_value is null or var_reference_value <> -38 then
+        raise exception 'таблица 2: для высоты 400 м и -40 ожидалось -38';
+    end if;
+    select row_values[9] into var_reference_value
+    from public.calc_correction where height_id = 4 and type_id = 6;
+    if var_reference_value is null or var_reference_value <> 22 then
+        raise exception 'таблица 3: для высоты 1200 м и скорости 11 ожидалось 22';
+    end if;
+    raise notice 'выданная структура: 54 строки с массивами, исправленные ячейки проверены';
+
     drop table if exists public.meteo_expected_results;
     create table public.meteo_expected_results (
         height integer,
@@ -55,8 +73,6 @@ begin
         raise exception 'для температуры +3 на высоте 200 м ожидалось -12';
     end if;
     raise notice 'пример +3 градуса пройден: отклонение -12, код %', 50 + abs(var_temperature);
-
-    -- первый столбец таблицы 3 дальность сноса пуль 40 м
     delete from public.meteo_expected_results;
     insert into public.meteo_expected_results values
         (200,11,15,3),
@@ -86,8 +102,6 @@ begin
         raise exception 'расчет вр не совпал с таблицей 3';
     end if;
     raise notice 'проверка вр по 9 высотам пройдена';
-
-    --  при скорости меньше 3 м/с направление и скорость равны нулю
     call public.sp_calculate_meteo(
         row(100,25,765,15,2,0)::public.input_params_type, 1
     );
@@ -97,8 +111,6 @@ begin
     if var_count <> 9 or var_errors <> 0 then
         raise exception 'не пройдена проверка слабого ветра для дмк';
     end if;
-
-    --  при дальности сноса меньше 40 м направление и скорость равны нулю
     call public.sp_calculate_meteo(
         row(100,25,765,15,null,30)::public.input_params_type, 2
     );
@@ -109,8 +121,32 @@ begin
         raise exception 'не пройдена проверка слабого ветра для вр';
     end if;
     raise notice 'проверки слабого ветра пройдены';
-
-    -- оставляем в таблице основной пример 
+    call public.sp_calculate_meteo(
+        row(100,25,765,15,15,0)::public.input_params_type, 1
+    );
+    select wind_speed into var_count from public.meteo_calculation_results where height_id = 1;
+    select wind_speed into var_errors from public.meteo_calculation_results where height_id = 9;
+    if var_count is null or var_errors is null or var_count <> 22 or var_errors <> 36 then
+        raise exception 'не пройдена проверка последнего столбца массива дмк';
+    end if;
+    call public.sp_calculate_meteo(
+        row(100,25,765,15,null,150)::public.input_params_type, 2
+    );
+    select wind_speed into var_count from public.meteo_calculation_results where height_id = 1;
+    select wind_speed into var_errors from public.meteo_calculation_results where height_id = 9;
+    if var_count is null or var_errors is null or var_count <> 12 or var_errors <> 20 then
+        raise exception 'не пройдена проверка последнего столбца массива вр';
+    end if;
+    call public.sp_calculate_meteo(
+        row(100,15,765,15,6,0)::public.input_params_type, 1
+    );
+    select count(*) into var_count from public.meteo_calculation_results;
+    select count(*) into var_errors from public.meteo_calculation_results
+    where temperature_deviation <> 0;
+    if var_count <> 9 or var_errors <> 0 then
+        raise exception 'не пройдена проверка нулевого отклонения температуры';
+    end if;
+    raise notice 'проверки крайних столбцов массивов и нулевого отклонения пройдены';
     call public.sp_calculate_meteo(
         row(100,25,765,15,6,0)::public.input_params_type, 1
     );
