@@ -1,8 +1,3 @@
--- Шаг 2. Выполнить запросы в MSSQL базе Front.
--- Каждый результат сохранить в CSV и загрузить в одноименную таблицу stg_* в PostgreSQL.
--- Имена и порядок колонок совпадают с таблицами stg_* из скрипта 01.
-
--- Закупки по месяцам.
 SELECT
     o.Period AS month_code,
     p.ID AS product_id,
@@ -18,7 +13,6 @@ JOIN Front.dbo.bm_JournalBarnetDocs h ON h.ID = o.DocumentID
 WHERE o.OperationID = 1 AND h.IsUse = 1
 GROUP BY o.Period, p.ID, p.description, o.VendorID, v.firstname;
 
--- Продажи товаров по месяцам.
 SELECT
     YEAR(j.dater) * 100 + MONTH(j.dater) AS month_code,
     p.ID AS product_id,
@@ -30,7 +24,6 @@ JOIN Front.dbo.product p ON p.productid = j.id
 WHERE j.id <> ''
 GROUP BY YEAR(j.dater) * 100 + MONTH(j.dater), p.ID, p.description;
 
--- Работа персонала по месяцам (из этих строк строятся кварталы и полугодия).
 SELECT
     YEAR(h.Period) * 100 + MONTH(h.Period) AS month_code,
     h.PersonID AS staff_id,
@@ -43,7 +36,6 @@ JOIN Front.dbo.personnel p ON p.personid = h.PersonID
 WHERE h.IsUse = 1
 GROUP BY YEAR(h.Period) * 100 + MONTH(h.Period), h.PersonID, p.firstname, p.lastname;
 
--- Недельное движение товаров по складам.
 SELECT
     YEAR(o.DateAdd) AS year,
     DATEPART(ISO_WEEK, o.DateAdd) AS iso_week,

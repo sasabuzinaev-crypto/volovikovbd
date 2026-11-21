@@ -1,6 +1,3 @@
--- Шаг 4. Ресурс «Время» по месяцам из всех четырёх направлений.
--- Выполнить после импорта CSV в таблицы stg_*.
-
 INSERT INTO stg_time
 SELECT DISTINCT month_code
 FROM stg_purchase

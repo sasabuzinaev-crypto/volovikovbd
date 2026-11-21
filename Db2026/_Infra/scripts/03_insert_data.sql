@@ -1,6 +1,3 @@
--- Шаг 3. Сначала импортировать CSV из MSSQL в таблицы stg_*.
--- Затем выполнить этот скрипт в базе front_olap.
-
 DO $$
 BEGIN
     INSERT INTO purchase (month_code, product_id, product_name, vendor_id,

@@ -1,9 +1,5 @@
--- Шаг 1. Выполнить CREATE DATABASE отдельно, подключиться к front_olap,
--- затем выполнить оставшуюся часть файла в новой базе.
-
 CREATE DATABASE front_olap;
 
--- Таблицы ниже создать уже после подключения к front_olap.
 CREATE TABLE stg_purchase (
     month_code integer,
     product_id integer,
