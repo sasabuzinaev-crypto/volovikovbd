@@ -1,13 +1,13 @@
--- Выборки из Front для переноса в PostgreSQL OLAP.
--- Выполнять в MSSQL, выгружать каждый результат отдельно в CSV.
--- Порядок и имена колонок соответствуют таблицам olap.stg_*.
+-- Шаг 2. Выполнить запросы в MSSQL базе Front.
+-- Каждый результат сохранить в CSV и загрузить в одноименную таблицу stg_* в PostgreSQL.
+-- Имена и порядок колонок совпадают с таблицами stg_* из скрипта 01.
 
--- 1. Закупки по месяцам, товарам и поставщикам.
+-- Закупки по месяцам.
 SELECT
-    CAST(o.Period AS int) AS month_code,
+    o.Period AS month_code,
     p.ID AS product_id,
     p.description AS product_name,
-    ISNULL(o.VendorID, 0) AS vendor_id,
+    o.VendorID AS vendor_id,
     v.firstname AS vendor_name,
     SUM(o.Count) AS quantity,
     SUM(o.Amount) AS amount
@@ -16,9 +16,9 @@ JOIN Front.dbo.product p ON p.ID = o.ProductID
 LEFT JOIN Front.dbo.vendors v ON v.ID = o.VendorID
 JOIN Front.dbo.bm_JournalBarnetDocs h ON h.ID = o.DocumentID
 WHERE o.OperationID = 1 AND h.IsUse = 1
-GROUP BY CAST(o.Period AS int), p.ID, p.description, ISNULL(o.VendorID, 0), v.firstname;
+GROUP BY o.Period, p.ID, p.description, o.VendorID, v.firstname;
 
--- 2. Продажи по месяцам и товарам.
+-- Продажи товаров по месяцам.
 SELECT
     YEAR(j.dater) * 100 + MONTH(j.dater) AS month_code,
     p.ID AS product_id,
@@ -30,8 +30,7 @@ JOIN Front.dbo.product p ON p.productid = j.id
 WHERE j.id <> ''
 GROUP BY YEAR(j.dater) * 100 + MONTH(j.dater), p.ID, p.description;
 
--- 3. Работа персонала по месяцам. Квартальные и полугодовые итоги строятся
--- в OLAP агрегацией этих месячных строк.
+-- Работа персонала по месяцам (из этих строк строятся кварталы и полугодия).
 SELECT
     YEAR(h.Period) * 100 + MONTH(h.Period) AS month_code,
     h.PersonID AS staff_id,
@@ -44,12 +43,12 @@ JOIN Front.dbo.personnel p ON p.personid = h.PersonID
 WHERE h.IsUse = 1
 GROUP BY YEAR(h.Period) * 100 + MONTH(h.Period), h.PersonID, p.firstname, p.lastname;
 
--- 4. Недельные складские движения по складу, товару и типу операции.
+-- Недельное движение товаров по складам.
 SELECT
-    CAST(DATEADD(day, -(DATEDIFF(day, '19000101', CAST(o.DateAdd AS date)) % 7),
-         CAST(o.DateAdd AS date)) AS date) AS week_start,
+    YEAR(o.DateAdd) AS year,
+    DATEPART(ISO_WEEK, o.DateAdd) AS iso_week,
     YEAR(o.DateAdd) * 100 + MONTH(o.DateAdd) AS month_code,
-    ISNULL(o.StorageID, 0) AS warehouse_id,
+    o.StorageID AS warehouse_id,
     s.description AS warehouse_name,
     p.ID AS product_id,
     p.description AS product_name,
@@ -62,7 +61,6 @@ JOIN Front.dbo.bm_StorageOperationsType t ON t.ID = o.OperationID
 LEFT JOIN Front.dbo.storages s ON s.id = o.StorageID
 JOIN Front.dbo.product p ON p.ID = o.ProductID
 WHERE o.OperationID > 0
-GROUP BY CAST(DATEADD(day, -(DATEDIFF(day, '19000101', CAST(o.DateAdd AS date)) % 7),
-         CAST(o.DateAdd AS date)) AS date),
-         YEAR(o.DateAdd) * 100 + MONTH(o.DateAdd), ISNULL(o.StorageID, 0), s.description,
+GROUP BY YEAR(o.DateAdd), DATEPART(ISO_WEEK, o.DateAdd),
+         YEAR(o.DateAdd) * 100 + MONTH(o.DateAdd), o.StorageID, s.description,
          p.ID, p.description, o.OperationID, t.Description;
